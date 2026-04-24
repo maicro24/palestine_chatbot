@@ -1,10 +1,10 @@
 # Secrets — NEVER commit
 .streamlit/secrets.toml
 
-# Vector database (large, auto-generated)
+# Vector DB (large, rebuilt via ingest.py)
 chroma_db/
 
-# PDF hash cache
+# PDF hash cache (local only)
 .pdf_hashes.json
 
 # Python cache
@@ -13,16 +13,19 @@ __pycache__/
 *.pyo
 *.pyd
 .Python
+*.egg-info/
+dist/
+build/
 
 # Virtual environments
 venv/
-env/
-.env/
 .venv/
+env/
 
-# OS files
+# OS junk
 .DS_Store
 Thumbs.db
+desktop.ini
 
 # IDE
 .vscode/
