@@ -2,7 +2,16 @@ import os, time, re, tempfile, json, io
 import streamlit as st
 from pathlib import Path
 from typing import List, TypedDict
+import subprocess
 
+# Check if the database exists. If not, run the ingestion script.
+if not os.path.exists("./chroma_db") or len(os.listdir("./chroma_db")) == 0:
+    print("Database not found. Running ingest.py to build ChromaDB...")
+    try:
+        subprocess.run(["python", "ingest.py"], check=True)
+        print("Database built successfully!")
+    except Exception as e:
+        print(f"Error building database: {e}")
 # ── AI Grid via OpenAI-compatible client ─────────────────────────────────────
 os.environ["OPENAI_API_KEY"]  = st.secrets.get("AI_API_KEY", "")
 AI_BASE_URL = st.secrets.get("AI_BASE_URL", "http://app.ai-grid.io:4000/v1")
@@ -538,6 +547,7 @@ if active == TABS[0]:
 
     # ── Bonus 2: Model comparison toggle ────────────────────────────────────
     compare_mode = st.toggle("⚖️ Compare Models (Llama-3 vs Mixtral)", value=False)
+    enable_voice = st.toggle("🔊 Enable Voice (تفعيل / إيقاف الصوت)", value=False)
 
     # ── Replay chat history ──────────────────────────────────────────────────
     for i, msg in enumerate(st.session_state.chat_history):
@@ -551,18 +561,19 @@ if active == TABS[0]:
                     st.info(translated)
 
     # ── Bonus 1: Voice Input ─────────────────────────────────────────────────
-    with st.expander("🎙️ Voice Input (record a question)", expanded=False):
-        audio_val = st.audio_input("Record your question (Arabic or English)", key="voice_rec")
-        voice_prompt = None
-        if audio_val is not None:
-            audio_bytes = audio_val.getvalue()
-            # Only transcribe if this is a new recording
-            if st.session_state.get("last_audio_bytes") != audio_bytes:
-                with st.spinner("🔊 Transcribing via Groq Whisper…"):
-                    voice_prompt = _groq_stt(audio_bytes)
-                st.session_state.last_audio_bytes = audio_bytes
-                if voice_prompt and not voice_prompt.startswith("[STT"):
-                    st.success(f"📝 Transcribed: **{voice_prompt}**")
+    voice_prompt = None
+    if enable_voice:
+        with st.expander("🎙️ Voice Input (record a question)", expanded=False):
+            audio_val = st.audio_input("Record your question (Arabic or English)", key="voice_rec")
+            if audio_val is not None:
+                audio_bytes = audio_val.getvalue()
+                # Only transcribe if this is a new recording
+                if st.session_state.get("last_audio_bytes") != audio_bytes:
+                    with st.spinner("🔊 Transcribing via Groq Whisper…"):
+                        voice_prompt = _groq_stt(audio_bytes)
+                    st.session_state.last_audio_bytes = audio_bytes
+                    if voice_prompt and not voice_prompt.startswith("[STT"):
+                        st.success(f"📝 Transcribed: **{voice_prompt}**")
 
     # ── Text or voice input ──────────────────────────────────────────────────
     text_prompt = st.chat_input("Ask anything about Palestine… (Arabic or English)")
@@ -613,9 +624,10 @@ if active == TABS[0]:
                 st.session_state.response_times.append(elapsed)
 
                 # ── TTS audio player ──────────────────────────────────────────
-                mp3 = _gtts_speak(answer)
-                if mp3:
-                    st.audio(mp3, format="audio/mp3", autoplay=False)
+                if enable_voice:
+                    mp3 = _gtts_speak(answer)
+                    if mp3:
+                        st.audio(mp3, format="audio/mp3", autoplay=False)
 
                 # ── Translate button (inline under answer) ────────────────────
                 tr_key = f"tr_new_{len(st.session_state.chat_history)}"
