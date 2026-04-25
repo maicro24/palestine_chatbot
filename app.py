@@ -97,11 +97,35 @@ st.markdown("""
 html, body, [class*="css"] { font-family: 'Inter', sans-serif; }
 .stApp { background: linear-gradient(135deg, #0f0c29, #302b63, #24243e); color: #e8e8e8; }
 section[data-testid="stSidebar"] { background: rgba(255,255,255,0.05); backdrop-filter: blur(12px); border-right: 1px solid rgba(255,255,255,0.1); }
-.chat-bubble-user { background: linear-gradient(135deg,#667eea,#764ba2); border-radius:16px 16px 4px 16px; padding:12px 16px; margin:8px 0; }
-.chat-bubble-ai   { background: rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.15); border-radius:16px 16px 16px 4px; padding:12px 16px; margin:8px 0; }
 .metric-card { background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.12); border-radius:12px; padding:20px; text-align:center; }
 .tab-header { font-size:1.6rem; font-weight:700; background:linear-gradient(90deg,#667eea,#f093fb); -webkit-background-clip:text; -webkit-text-fill-color:transparent; margin-bottom:1rem; }
-div[data-testid="stChatMessage"] { background:rgba(255,255,255,0.04); border-radius:12px; padding:4px; margin:4px 0; }
+
+/* ── Chat bubble alignment ─────────────────────────────────────────────── */
+/* USER → right side */
+div[data-testid="stChatMessage"]:has([data-testid="chatAvatarIcon-user"]) {
+    flex-direction: row-reverse;
+    background: linear-gradient(135deg,rgba(102,126,234,0.18),rgba(118,75,162,0.18));
+    border: 1px solid rgba(102,126,234,0.35);
+    border-radius: 18px 4px 18px 18px;
+    margin: 6px 0 6px 60px;
+    padding: 8px 14px;
+}
+/* USER avatar → right */
+div[data-testid="stChatMessage"]:has([data-testid="chatAvatarIcon-user"]) [data-testid="chatAvatarIcon-user"] {
+    margin-left: 10px; margin-right: 0;
+}
+/* USER text → right-align */
+div[data-testid="stChatMessage"]:has([data-testid="chatAvatarIcon-user"]) .stMarkdown {
+    text-align: right;
+}
+/* ASSISTANT → left side */
+div[data-testid="stChatMessage"]:has([data-testid="chatAvatarIcon-assistant"]) {
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 4px 18px 18px 18px;
+    margin: 6px 60px 6px 0;
+    padding: 8px 14px;
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -516,22 +540,33 @@ if active == TABS[0]:
     compare_mode = st.toggle("⚖️ Compare Models (Llama-3 vs Mixtral)", value=False)
 
     # ── Replay chat history ──────────────────────────────────────────────────
-    for msg in st.session_state.chat_history:
+    for i, msg in enumerate(st.session_state.chat_history):
         with st.chat_message(msg["role"]):
             st.markdown(msg["content"])
+            # Show translate under each past assistant message
+            if msg["role"] == "assistant":
+                if st.button("🌐 Translate", key=f"tr_hist_{i}", help="Translate Ar ↔ En"):
+                    with st.spinner("Translating…"):
+                        translated = _translate_text(msg["content"])
+                    st.info(translated)
 
     # ── Bonus 1: Voice Input ─────────────────────────────────────────────────
-    audio_val = st.audio_input("🎙️ Record your question (Arabic or English)")
-    voice_prompt = None
-    if audio_val is not None:
-        with st.spinner("🔊 Transcribing via Groq Whisper…"):
-            voice_prompt = _groq_stt(audio_val.getvalue())
-        if voice_prompt and not voice_prompt.startswith("[STT"):
-            st.info(f"📝 Transcribed: **{voice_prompt}**")
+    with st.expander("🎙️ Voice Input (record a question)", expanded=False):
+        audio_val = st.audio_input("Record your question (Arabic or English)", key="voice_rec")
+        voice_prompt = None
+        if audio_val is not None:
+            audio_bytes = audio_val.getvalue()
+            # Only transcribe if this is a new recording
+            if st.session_state.get("last_audio_bytes") != audio_bytes:
+                with st.spinner("🔊 Transcribing via Groq Whisper…"):
+                    voice_prompt = _groq_stt(audio_bytes)
+                st.session_state.last_audio_bytes = audio_bytes
+                if voice_prompt and not voice_prompt.startswith("[STT"):
+                    st.success(f"📝 Transcribed: **{voice_prompt}**")
 
     # ── Text or voice input ──────────────────────────────────────────────────
     text_prompt = st.chat_input("Ask anything about Palestine… (Arabic or English)")
-    prompt = voice_prompt or text_prompt
+    prompt = text_prompt or voice_prompt
 
     if prompt:
         st.session_state.chat_history.append({"role": "user", "content": prompt})
@@ -550,7 +585,6 @@ if active == TABS[0]:
             # ── Bonus 2: Side-by-side comparison ─────────────────────────────
             st.markdown("### ⚖️ Model Comparison")
             col1, col2 = st.columns(2)
-
             with col1:
                 st.markdown("#### 🦙 Llama-3 (8B)")
                 with st.spinner("Running Llama-3…"):
@@ -562,14 +596,12 @@ if active == TABS[0]:
                     ans1 = _groq_llm_call("llama3-8b-8192", _sys_compare,
                                           f"Context:\n{ctx1}\n\nQuestion: {prompt}")
                 st.markdown(ans1)
-
             with col2:
                 st.markdown("#### 🌀 Mixtral (8x7B)")
                 with st.spinner("Running Mixtral…"):
                     ans2 = _groq_llm_call("mixtral-8x7b-32768", _sys_compare,
                                           f"Context:\n{ctx1}\n\nQuestion: {prompt}")
                 st.markdown(ans2)
-
             answer = f"**Llama-3:** {ans1}\n\n**Mixtral:** {ans2}"
 
         else:
@@ -580,35 +612,35 @@ if active == TABS[0]:
                 st.markdown(answer)
                 st.session_state.response_times.append(elapsed)
 
-                # Workflow trace
+                # ── TTS audio player ──────────────────────────────────────────
+                mp3 = _gtts_speak(answer)
+                if mp3:
+                    st.audio(mp3, format="audio/mp3", autoplay=False)
+
+                # ── Translate button (inline under answer) ────────────────────
+                tr_key = f"tr_new_{len(st.session_state.chat_history)}"
+                if st.button("🌐 Translate (Ar ↔ En)", key=tr_key):
+                    with st.spinner("Translating…"):
+                        translated = _translate_text(answer)
+                    st.info(translated)
+
+                # ── Collapsible details ───────────────────────────────────────
                 with st.expander(f"⚙️ Workflow trace · ⏱ {elapsed}s", expanded=False):
-                    steps = [
-                        ("1️⃣  Analyze Query",   f"Language: `{full_state.get('language','?')}` · Type: `{full_state.get('query_type','?')}`"),
-                        ("2️⃣  Plan Retrieval",  f"Fetching top `{full_state.get('retrieval_k','?')}` chunks"),
-                        ("3️⃣  Retrieve",        f"`{len(full_state.get('documents', []))}` chunks from ChromaDB"),
-                        ("4️⃣  Grade Documents", f"{'✅ passed' if full_state.get('grade_passed') else '❌ fallback'}"),
-                        ("5️⃣  Generate",        "Cited answer produced" if full_state.get('grade_passed') else "Fallback"),
-                    ]
-                    for label, detail in steps:
+                    for label, detail in [
+                        ("1️⃣ Analyze",  f"Lang `{full_state.get('language','?')}` · Type `{full_state.get('query_type','?')}`"),
+                        ("2️⃣ Plan",     f"k = `{full_state.get('retrieval_k','?')}`"),
+                        ("3️⃣ Retrieve", f"`{len(full_state.get('documents',[]))}` chunks"),
+                        ("4️⃣ Grade",    '✅ passed' if full_state.get('grade_passed') else '❌ fallback'),
+                        ("5️⃣ Generate", "cited answer" if full_state.get('grade_passed') else "fallback"),
+                    ]:
                         st.markdown(f"**{label}** — {detail}")
 
                 if docs:
-                    with st.expander(f"📚 Graded sources ({len(docs)})"):
+                    with st.expander(f"📚 Sources ({len(docs)})", expanded=False):
                         for d in docs:
                             m = d.metadata
                             st.markdown(f"**{m.get('document_title','?')}** — Page {m.get('page_number','?')}")
                             st.caption(d.page_content[:300] + "…")
-
-                # ── Bonus 1: TTS output ───────────────────────────────────────
-                mp3 = _gtts_speak(answer)
-                if mp3:
-                    st.audio(mp3, format="audio/mp3", autoplay=True)
-
-                # ── Bonus 3: Translate button ─────────────────────────────────
-                if st.button("🌐 Translate (Ar ↔ En)", key=f"tr_{len(st.session_state.chat_history)}"):
-                    with st.spinner("Translating…"):
-                        translated = _translate_text(answer)
-                    st.info(translated)
 
         st.session_state.chat_history.append({"role": "assistant", "content": answer})
 
