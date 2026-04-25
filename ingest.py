@@ -53,7 +53,7 @@ CHROMA_DIR        = Path("chroma_db")     # persisted vector DB
 COLLECTION_NAME   = "smart_library"
 HASH_CACHE_FILE   = Path(".pdf_hashes.json")   # tracks already-ingested files
 
-EMBED_MODEL       = "sentence-transformers/all-MiniLM-L6-v2"
+EMBED_MODEL       = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
 EMBED_DEVICE      = "cpu"                 # change to "cuda" if GPU available
 
 CHUNK_SIZE        = 1000                  # characters per chunk
@@ -117,7 +117,7 @@ def _detect_language(text: str) -> str:
     """Heuristic: if >20 % of chars are Arabic → mark as Arabic."""
     if not text:
         return "en"
-    arabic_chars = len(_ARABIC_RANGE.findall(text))
+    arabic_chars = sum(len(m) for m in _ARABIC_RANGE.findall(text))
     ratio = arabic_chars / max(len(text), 1)
     return "ar" if ratio > 0.20 else "en"
 
