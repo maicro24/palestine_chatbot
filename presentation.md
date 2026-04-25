@@ -72,4 +72,5 @@ flowchart TD
 ---
 
 **GitHub Repository:** [https://github.com/maicro24/palestine_chatbot](https://github.com/maicro24/palestine_chatbot)
-**HuggingFace Link:** empty سوق اظيفه فيما بعد
+**HuggingFace Link:** [https://huggingface.co/spaces/okjlkli/palestine_chatboot/tree/main](https://huggingface.co/spaces/okjlkli/palestine_chatboot/tree/main)
+**Live Streamlit App:** [https://palestinechatbot-lc3kf4mx5rav8r8corjmdi.streamlit.app/](https://palestinechatbot-lc3kf4mx5rav8r8corjmdi.streamlit.app/)
